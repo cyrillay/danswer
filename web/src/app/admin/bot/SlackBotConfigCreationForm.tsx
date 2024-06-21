@@ -146,8 +146,8 @@ export const SlackBotCreationForm = ({
               const errorMsg = responseJson.detail || responseJson.message;
               setPopup({
                 message: isUpdate
-                  ? `Error updating DanswerBot config - ${errorMsg}`
-                  : `Error creating DanswerBot config - ${errorMsg}`,
+                  ? `Error updating TailorAIBot config - ${errorMsg}`
+                  : `Error creating TailorAIBot config - ${errorMsg}`,
                 type: "error",
               });
             }
@@ -169,7 +169,7 @@ export const SlackBotCreationForm = ({
                       &apos;#ask-danswer&apos;.
                       <br />
                       <br />
-                      <i>NOTE</i>: you still need to add DanswerBot to the
+                      <i>NOTE</i>: you still need to add TailorAIBot to the
                       channel(s) in Slack itself. Setting this config will not
                       auto-add the bot to the channel.
                     </div>
@@ -181,15 +181,15 @@ export const SlackBotCreationForm = ({
                   label="Response Format"
                   subtext={
                     <>
-                      If set to Citations, DanswerBot will respond with a direct
+                      If set to Citations, TailorAIBot will respond with a direct
                       answer with inline citations. It will also provide links
                       to these cited documents below the answer. When in doubt,
                       choose this option.
                       <br />
                       <br />
-                      If set to Quotes, DanswerBot will respond with a direct
+                      If set to Quotes, TailorAIBot will respond with a direct
                       answer as well as with quotes pulled from the context
-                      documents to support that answer. DanswerBot will also
+                      documents to support that answer. TailorAIBot will also
                       give a list of relevant documents. Choose this option if
                       you want a very detailed response AND/OR a list of
                       relevant documents would be useful just in case the LLM

@@ -232,7 +232,7 @@ export function _WelcomeModal() {
       );
       break;
     default:
-      title = "🎉 Welcome to Danswer";
+      title = "🎉 Welcome to TailorAI";
       body = (
         <>
           <div>
