@@ -1,8 +1,11 @@
 import {
   AxeroIcon,
   BookstackIcon,
+  ClickupIcon,
   ConfluenceIcon,
+  DiscourseIcon,
   Document360Icon,
+  DropboxIcon,
   FileIcon,
   GithubIcon,
   GitlabIcon,
@@ -19,15 +22,19 @@ import {
   NotionIcon,
   ProductboardIcon,
   RequestTrackerIcon,
+  SalesforceIcon,
   SharepointIcon,
+  TeamsIcon,
   SlabIcon,
   SlackIcon,
   ZendeskIcon,
   ZulipIcon,
+  MediaWikiIcon,
+  WikipediaIcon,
 } from "@/components/icons/icons";
 import { ValidSources } from "./types";
 import { SourceCategory, SourceMetadata } from "./search/interfaces";
-import { Persona } from "@/app/admin/personas/interfaces";
+import { Persona } from "@/app/admin/assistants/interfaces";
 
 interface PartialSourceMetadata {
   icon: React.FC<{ size?: number; className?: string }>;
@@ -150,9 +157,29 @@ const SOURCE_METADATA_MAP: SourceMap = {
     displayName: "Loopio",
     category: SourceCategory.AppConnection,
   },
+  dropbox: {
+    icon: DropboxIcon,
+    displayName: "Dropbox",
+    category: SourceCategory.AppConnection,
+  },
+  salesforce: {
+    icon: SalesforceIcon,
+    displayName: "Salesforce",
+    category: SourceCategory.AppConnection,
+  },
   sharepoint: {
     icon: SharepointIcon,
     displayName: "Sharepoint",
+    category: SourceCategory.AppConnection,
+  },
+  teams: {
+    icon: TeamsIcon,
+    displayName: "Teams",
+    category: SourceCategory.AppConnection,
+  },
+  discourse: {
+    icon: DiscourseIcon,
+    displayName: "Discourse",
     category: SourceCategory.AppConnection,
   },
   axero: {
@@ -160,9 +187,24 @@ const SOURCE_METADATA_MAP: SourceMap = {
     displayName: "Axero",
     category: SourceCategory.AppConnection,
   },
+  wikipedia: {
+    icon: WikipediaIcon,
+    displayName: "Wikipedia",
+    category: SourceCategory.AppConnection,
+  },
+  mediawiki: {
+    icon: MediaWikiIcon,
+    displayName: "MediaWiki",
+    category: SourceCategory.AppConnection,
+  },
   requesttracker: {
     icon: RequestTrackerIcon,
     displayName: "Request Tracker",
+    category: SourceCategory.AppConnection,
+  },
+  clickup: {
+    icon: ClickupIcon,
+    displayName: "Clickup",
     category: SourceCategory.AppConnection,
   },
 };

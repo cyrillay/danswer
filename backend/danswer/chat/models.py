@@ -102,8 +102,23 @@ class QAResponse(SearchResponse, DanswerAnswer):
     error_msg: str | None = None
 
 
+class ImageGenerationDisplay(BaseModel):
+    file_ids: list[str]
+
+
+class CustomToolResponse(BaseModel):
+    response: dict
+    tool_name: str
+
+
 AnswerQuestionPossibleReturn = (
-    DanswerAnswerPiece | DanswerQuotes | CitationInfo | DanswerContexts | StreamingError
+    DanswerAnswerPiece
+    | DanswerQuotes
+    | CitationInfo
+    | DanswerContexts
+    | ImageGenerationDisplay
+    | CustomToolResponse
+    | StreamingError
 )
 
 

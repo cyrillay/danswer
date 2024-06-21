@@ -12,6 +12,7 @@ services:
     depends_on:
       - relational_db
       - index
+      - inference_model_server
     restart: always
     ports:
       - "8080:8080"
@@ -19,6 +20,7 @@ services:
       # Auth Settings
       - AUTH_TYPE=${AUTH_TYPE:-disabled}
       - SESSION_EXPIRE_TIME_SECONDS=${SESSION_EXPIRE_TIME_SECONDS:-86400}
+      - ENCRYPTION_KEY_SECRET=${ENCRYPTION_KEY_SECRET:-}
       - VALID_EMAIL_DOMAINS=${VALID_EMAIL_DOMAINS:-}
       - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID:-}
       - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET:-}
@@ -44,6 +46,8 @@ services:
       - DISABLE_LLM_CHOOSE_SEARCH=${DISABLE_LLM_CHOOSE_SEARCH:-}
       - DISABLE_LLM_QUERY_REPHRASE=${DISABLE_LLM_QUERY_REPHRASE:-}
       - DISABLE_GENERATIVE_AI=${DISABLE_GENERATIVE_AI:-}
+      - DISABLE_LITELLM_STREAMING=${DISABLE_LITELLM_STREAMING:-}
+      - LITELLM_EXTRA_HEADERS=${LITELLM_EXTRA_HEADERS:-}
       # if set, allows for the use of the token budget system
       - TOKEN_BUDGET_GLOBALLY_ENABLED=${TOKEN_BUDGET_GLOBALLY_ENABLED:-}
       # Enables the use of bedrock models
@@ -77,10 +81,7 @@ services:
       # If set to `true` will enable additional logs about Vespa query performance
       # (time spent on finding the right docs + time spent fetching summaries from disk)
       - LOG_VESPA_TIMING_INFORMATION=${LOG_VESPA_TIMING_INFORMATION:-}
-    volumes:
-      - local_dynamic_storage:/home/storage
-      - file_connector_tmp_storage:/home/file_connector_storage
-      - model_cache_nltk:/root/nltk_data/
+      - LOG_ENDPOINT_LATENCY=${LOG_ENDPOINT_LATENCY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
@@ -99,8 +100,11 @@ services:
     depends_on:
       - relational_db
       - index
+      - inference_model_server
+      - indexing_model_server
     restart: always
     environment:
+      - ENCRYPTION_KEY_SECRET=${ENCRYPTION_KEY_SECRET:-}
       # Gen AI Settings (Needed by DanswerBot)
       - GEN_AI_MODEL_PROVIDER=${GEN_AI_MODEL_PROVIDER:-}
       - GEN_AI_MODEL_VERSION=${GEN_AI_MODEL_VERSION:-}
@@ -118,6 +122,8 @@ services:
       - DISABLE_LLM_QUERY_REPHRASE=${DISABLE_LLM_QUERY_REPHRASE:-}
       - DISABLE_GENERATIVE_AI=${DISABLE_GENERATIVE_AI:-}
       - GENERATIVE_MODEL_ACCESS_CHECK_FREQ=${GENERATIVE_MODEL_ACCESS_CHECK_FREQ:-}
+      - DISABLE_LITELLM_STREAMING=${DISABLE_LITELLM_STREAMING:-}
+      - LITELLM_EXTRA_HEADERS=${LITELLM_EXTRA_HEADERS:-}
       # Query Options
       - DOC_TIME_DECAY=${DOC_TIME_DECAY:-}  # Recency Bias for search results, decay at 1 / (1 + DOC_TIME_DECAY * x years)
       - HYBRID_ALPHA=${HYBRID_ALPHA:-}  # Hybrid Search Alpha (0 for entirely keyword, 1 for entirely vector)
@@ -142,16 +148,18 @@ services:
       - INDEXING_MODEL_SERVER_HOST=${INDEXING_MODEL_SERVER_HOST:-indexing_model_server}
       # Indexing Configs
       - NUM_INDEXING_WORKERS=${NUM_INDEXING_WORKERS:-}
+      - ENABLED_CONNECTOR_TYPES=${ENABLED_CONNECTOR_TYPES:-}
       - DISABLE_INDEX_UPDATE_ON_SWAP=${DISABLE_INDEX_UPDATE_ON_SWAP:-}
       - DASK_JOB_CLIENT_ENABLED=${DASK_JOB_CLIENT_ENABLED:-}
       - CONTINUE_ON_CONNECTOR_FAILURE=${CONTINUE_ON_CONNECTOR_FAILURE:-}
       - EXPERIMENTAL_CHECKPOINTING_ENABLED=${EXPERIMENTAL_CHECKPOINTING_ENABLED:-}
       - CONFLUENCE_CONNECTOR_LABELS_TO_SKIP=${CONFLUENCE_CONNECTOR_LABELS_TO_SKIP:-}
+      - JIRA_CONNECTOR_LABELS_TO_SKIP=${JIRA_CONNECTOR_LABELS_TO_SKIP:-}
+      - WEB_CONNECTOR_VALIDATE_URLS=${WEB_CONNECTOR_VALIDATE_URLS:-}
       - JIRA_API_VERSION=${JIRA_API_VERSION:-}
       - GONG_CONNECTOR_START_TIME=${GONG_CONNECTOR_START_TIME:-}
       - NOTION_CONNECTOR_ENABLE_RECURSIVE_PAGE_LOOKUP=${NOTION_CONNECTOR_ENABLE_RECURSIVE_PAGE_LOOKUP:-}
       - GITHUB_CONNECTOR_BASE_URL=${GITHUB_CONNECTOR_BASE_URL:-}
-      - DISABLE_DOCUMENT_CLEANUP=${DISABLE_DOCUMENT_CLEANUP:-}
       # Danswer SlackBot Configs
       - DANSWER_BOT_SLACK_APP_TOKEN=${DANSWER_BOT_SLACK_APP_TOKEN:-}
       - DANSWER_BOT_SLACK_BOT_TOKEN=${DANSWER_BOT_SLACK_BOT_TOKEN:-}
@@ -170,10 +178,6 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}  # Set to debug to get more fine-grained logs
       - LOG_ALL_MODEL_INTERACTIONS=${LOG_ALL_MODEL_INTERACTIONS:-}  # Log all of the prompts to the LLM
       - LOG_VESPA_TIMING_INFORMATION=${LOG_VESPA_TIMING_INFORMATION:-}
-    volumes:
-      - local_dynamic_storage:/home/storage
-      - file_connector_tmp_storage:/home/file_connector_storage
-      - model_cache_nltk:/root/nltk_data/
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
@@ -191,6 +195,9 @@ services:
       args:
         - NEXT_PUBLIC_DISABLE_STREAMING=${NEXT_PUBLIC_DISABLE_STREAMING:-false}
         - NEXT_PUBLIC_NEW_CHAT_DIRECTS_TO_SAME_PERSONA=${NEXT_PUBLIC_NEW_CHAT_DIRECTS_TO_SAME_PERSONA:-false}
+        - NEXT_PUBLIC_POSITIVE_PREDEFINED_FEEDBACK_OPTIONS=${NEXT_PUBLIC_POSITIVE_PREDEFINED_FEEDBACK_OPTIONS:-}
+        - NEXT_PUBLIC_NEGATIVE_PREDEFINED_FEEDBACK_OPTIONS=${NEXT_PUBLIC_NEGATIVE_PREDEFINED_FEEDBACK_OPTIONS:-}
+        - NEXT_PUBLIC_DISABLE_LOGOUT=${NEXT_PUBLIC_DISABLE_LOGOUT:-}
     depends_on:
       - api_server
     restart: always
@@ -217,7 +224,7 @@ services:
       # Set to debug to get more fine-grained logs
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      - model_cache_torch:/root/.cache/torch/
+      # Not necessary, this is just to reduce download time during startup
       - model_cache_huggingface:/root/.cache/huggingface/
     logging:
       driver: json-file
@@ -245,7 +252,7 @@ services:
       # Set to debug to get more fine-grained logs
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      - model_cache_torch:/root/.cache/torch/
+      # Not necessary, this is just to reduce download time during startup
       - model_cache_huggingface:/root/.cache/huggingface/
     logging:
       driver: json-file
@@ -313,10 +320,7 @@ services:
         
 
 volumes:
-  local_dynamic_storage:
-  file_connector_tmp_storage:  # used to store files uploaded by the user temporarily while we are indexing them
   db_volume:
   vespa_volume:
-  model_cache_torch:
-  model_cache_nltk:
+  # Created by the container itself
   model_cache_huggingface:

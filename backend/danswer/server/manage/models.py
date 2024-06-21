@@ -1,4 +1,5 @@
 from typing import Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 from pydantic import root_validator
@@ -13,6 +14,11 @@ from danswer.db.models import SlackBotConfig as SlackBotConfigModel
 from danswer.db.models import SlackBotResponseType
 from danswer.indexing.models import EmbeddingModelDetail
 from danswer.server.features.persona.models import PersonaSnapshot
+from danswer.server.models import FullUserSnapshot
+from danswer.server.models import InvitedUserSnapshot
+
+if TYPE_CHECKING:
+    from danswer.db.models import User as UserModel
 
 
 class VersionResponse(BaseModel):
@@ -26,6 +32,10 @@ class AuthTypeResponse(BaseModel):
     requires_verification: bool
 
 
+class UserPreferences(BaseModel):
+    chosen_assistants: list[int] | None
+
+
 class UserInfo(BaseModel):
     id: str
     email: str
@@ -33,6 +43,19 @@ class UserInfo(BaseModel):
     is_superuser: bool
     is_verified: bool
     role: UserRole
+    preferences: UserPreferences
+
+    @classmethod
+    def from_model(cls, user: "UserModel") -> "UserInfo":
+        return cls(
+            id=str(user.id),
+            email=user.email,
+            is_active=user.is_active,
+            is_superuser=user.is_superuser,
+            is_verified=user.is_verified,
+            role=user.role,
+            preferences=(UserPreferences(chosen_assistants=user.chosen_assistants)),
+        )
 
 
 class UserByEmail(BaseModel):
@@ -117,7 +140,9 @@ class SlackBotConfig(BaseModel):
         return cls(
             id=slack_bot_config_model.id,
             persona=(
-                PersonaSnapshot.from_model(slack_bot_config_model.persona)
+                PersonaSnapshot.from_model(
+                    slack_bot_config_model.persona, allow_deleted=True
+                )
                 if slack_bot_config_model.persona
                 else None
             ),
@@ -129,3 +154,10 @@ class SlackBotConfig(BaseModel):
 class FullModelVersionResponse(BaseModel):
     current_model: EmbeddingModelDetail
     secondary_model: EmbeddingModelDetail | None
+
+
+class AllUsersResponse(BaseModel):
+    accepted: list[FullUserSnapshot]
+    invited: list[InvitedUserSnapshot]
+    accepted_pages: int
+    invited_pages: int

@@ -1,3 +1,5 @@
+import io
+import os
 from collections.abc import Callable
 from collections.abc import Collection
 from datetime import datetime
@@ -11,6 +13,7 @@ import bs4
 from atlassian import Confluence  # type:ignore
 from requests import HTTPError
 
+from danswer.configs.app_configs import CONFLUENCE_CONNECTOR_INDEX_ONLY_ACTIVE_PAGES
 from danswer.configs.app_configs import CONFLUENCE_CONNECTOR_LABELS_TO_SKIP
 from danswer.configs.app_configs import CONTINUE_ON_CONNECTOR_FAILURE
 from danswer.configs.app_configs import INDEX_BATCH_SIZE
@@ -18,7 +21,6 @@ from danswer.configs.constants import DocumentSource
 from danswer.connectors.confluence.rate_limit_handler import (
     make_confluence_call_handle_rate_limit,
 )
-from danswer.connectors.cross_connector_utils.html_utils import format_document_soup
 from danswer.connectors.interfaces import GenerateDocumentsOutput
 from danswer.connectors.interfaces import LoadConnector
 from danswer.connectors.interfaces import PollConnector
@@ -27,6 +29,8 @@ from danswer.connectors.models import BasicExpertInfo
 from danswer.connectors.models import ConnectorMissingCredentialError
 from danswer.connectors.models import Document
 from danswer.connectors.models import Section
+from danswer.file_processing.extract_file_text import extract_file_text
+from danswer.file_processing.html_utils import format_document_soup
 from danswer.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -146,6 +150,24 @@ def parse_html_page(text: str, confluence_client: Confluence) -> str:
     return format_document_soup(soup)
 
 
+def get_used_attachments(text: str, confluence_client: Confluence) -> list[str]:
+    """Parse a Confluence html page to generate a list of current
+        attachment in used
+
+    Args:
+        text (str): The page content
+        confluence_client (Confluence): Confluence client
+
+    Returns:
+        list[str]: List of filename currently in used
+    """
+    files_in_used = []
+    soup = bs4.BeautifulSoup(text, "html.parser")
+    for attachment in soup.findAll("ri:attachment"):
+        files_in_used.append(attachment.attrs["ri:filename"])
+    return files_in_used
+
+
 def _comment_dfs(
     comments_str: str,
     comment_pages: Collection[dict[str, Any]],
@@ -219,6 +241,9 @@ class ConfluenceConnector(LoadConnector, PollConnector):
                     self.space,
                     start=start_ind,
                     limit=batch_size,
+                    status="current"
+                    if CONFLUENCE_CONNECTOR_INDEX_ONLY_ACTIVE_PAGES
+                    else None,
                     expand="body.storage.value,version",
                 )
             except Exception:
@@ -237,6 +262,9 @@ class ConfluenceConnector(LoadConnector, PollConnector):
                                 self.space,
                                 start=start_ind + i,
                                 limit=1,
+                                status="current"
+                                if CONFLUENCE_CONNECTOR_INDEX_ONLY_ACTIVE_PAGES
+                                else None,
                                 expand="body.storage.value,version",
                             )
                         )
@@ -314,6 +342,43 @@ class ConfluenceConnector(LoadConnector, PollConnector):
             logger.exception("Ran into exception when fetching labels from Confluence")
             return []
 
+    def _fetch_attachments(
+        self, confluence_client: Confluence, page_id: str, files_in_used: list[str]
+    ) -> str:
+        get_attachments_from_content = make_confluence_call_handle_rate_limit(
+            confluence_client.get_attachments_from_content
+        )
+        files_attachment_content: list = []
+
+        try:
+            attachments_container = get_attachments_from_content(
+                page_id, start=0, limit=500
+            )
+            for attachment in attachments_container["results"]:
+                if attachment["metadata"]["mediaType"] in ["image/jpeg", "image/png"]:
+                    continue
+
+                if attachment["title"] not in files_in_used:
+                    continue
+
+                download_link = confluence_client.url + attachment["_links"]["download"]
+                response = confluence_client._session.get(download_link)
+
+                if response.status_code == 200:
+                    extract = extract_file_text(
+                        attachment["title"], io.BytesIO(response.content)
+                    )
+                    files_attachment_content.append(extract)
+
+        except Exception as e:
+            if not self.continue_on_failure:
+                raise e
+            logger.exception(
+                f"Ran into exception when fetching attachments from Confluence: {e}"
+            )
+
+        return "\n".join(files_attachment_content)
+
     def _get_doc_batch(
         self, start_ind: int, time_filter: Callable[[datetime], bool] | None = None
     ) -> tuple[list[Document], int]:
@@ -359,6 +424,12 @@ class ConfluenceConnector(LoadConnector, PollConnector):
                     logger.debug("Page is empty, skipping: %s", page_url)
                     continue
                 page_text = parse_html_page(page_html, self.confluence_client)
+
+                files_in_used = get_used_attachments(page_html, self.confluence_client)
+                attachment_text = self._fetch_attachments(
+                    self.confluence_client, page_id, files_in_used
+                )
+                page_text += attachment_text
                 comments_text = self._fetch_comments(self.confluence_client, page_id)
                 page_text += comments_text
 
@@ -416,8 +487,6 @@ class ConfluenceConnector(LoadConnector, PollConnector):
 
 
 if __name__ == "__main__":
-    import os
-
     connector = ConfluenceConnector(os.environ["CONFLUENCE_TEST_SPACE_URL"])
     connector.load_credentials(
         {

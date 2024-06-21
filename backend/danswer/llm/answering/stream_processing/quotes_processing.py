@@ -15,10 +15,10 @@ from danswer.chat.models import DanswerQuote
 from danswer.chat.models import DanswerQuotes
 from danswer.chat.models import LlmDoc
 from danswer.configs.chat_configs import QUOTE_ALLOWED_ERROR_PERCENT
-from danswer.indexing.models import InferenceChunk
 from danswer.prompts.constants import ANSWER_PAT
 from danswer.prompts.constants import QUOTE_PAT
 from danswer.prompts.constants import UNCERTAINTY_PAT
+from danswer.search.models import InferenceChunk
 from danswer.utils.logger import setup_logger
 from danswer.utils.text_processing import clean_model_quote
 from danswer.utils.text_processing import clean_up_code_blocks
@@ -247,6 +247,17 @@ def process_model_tokens(
         if found_answer_start and not found_answer_end:
             if is_json_prompt and _stream_json_answer_end(model_previous, token):
                 found_answer_end = True
+
+                # return the remaining part of the answer e.g. token might be 'd.", ' and we should yield 'd.'
+                if token:
+                    try:
+                        answer_token_section = token.index('"')
+                        yield DanswerAnswerPiece(
+                            answer_piece=hold_quote + token[:answer_token_section]
+                        )
+                    except ValueError:
+                        logger.error("Quotation mark not found in token")
+                        yield DanswerAnswerPiece(answer_piece=hold_quote + token)
                 yield DanswerAnswerPiece(answer_piece=None)
                 continue
             elif not is_json_prompt:

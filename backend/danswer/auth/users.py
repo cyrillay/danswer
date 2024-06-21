@@ -1,4 +1,3 @@
-import os
 import smtplib
 import uuid
 from collections.abc import AsyncGenerator
@@ -23,25 +22,29 @@ from fastapi_users.authentication import CookieTransport
 from fastapi_users.authentication import Strategy
 from fastapi_users.authentication.strategy.db import AccessTokenDatabase
 from fastapi_users.authentication.strategy.db import DatabaseStrategy
-from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.openapi import OpenAPIResponseType
+from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from sqlalchemy.orm import Session
 
+from danswer.auth.invited_users import get_invited_users
 from danswer.auth.schemas import UserCreate
 from danswer.auth.schemas import UserRole
 from danswer.configs.app_configs import AUTH_TYPE
 from danswer.configs.app_configs import DISABLE_AUTH
 from danswer.configs.app_configs import EMAIL_FROM
 from danswer.configs.app_configs import REQUIRE_EMAIL_VERIFICATION
-from danswer.configs.app_configs import SECRET
 from danswer.configs.app_configs import SESSION_EXPIRE_TIME_SECONDS
 from danswer.configs.app_configs import SMTP_PASS
 from danswer.configs.app_configs import SMTP_PORT
 from danswer.configs.app_configs import SMTP_SERVER
 from danswer.configs.app_configs import SMTP_USER
+from danswer.configs.app_configs import USER_AUTH_SECRET
 from danswer.configs.app_configs import VALID_EMAIL_DOMAINS
 from danswer.configs.app_configs import WEB_DOMAIN
 from danswer.configs.constants import AuthType
+from danswer.configs.constants import DANSWER_API_KEY_DUMMY_EMAIL_DOMAIN
+from danswer.configs.constants import DANSWER_API_KEY_PREFIX
+from danswer.configs.constants import UNNAMED_KEY_PLACEHOLDER
 from danswer.db.auth import get_access_token_db
 from danswer.db.auth import get_user_count
 from danswer.db.auth import get_user_db
@@ -56,9 +59,6 @@ from danswer.utils.variable_functionality import fetch_versioned_implementation
 
 logger = setup_logger()
 
-USER_WHITELIST_FILE = "/home/danswer_whitelist.txt"
-_user_whitelist: list[str] | None = None
-
 
 def verify_auth_setting() -> None:
     if AUTH_TYPE not in [AuthType.DISABLED, AuthType.BASIC, AuthType.GOOGLE_OAUTH]:
@@ -69,26 +69,28 @@ def verify_auth_setting() -> None:
     logger.info(f"Using Auth Type: {AUTH_TYPE.value}")
 
 
+def get_display_email(email: str | None, space_less: bool = False) -> str:
+    if email and email.endswith(DANSWER_API_KEY_DUMMY_EMAIL_DOMAIN):
+        name = email.split("@")[0]
+        if name == DANSWER_API_KEY_PREFIX + UNNAMED_KEY_PLACEHOLDER:
+            return "Unnamed API Key"
+
+        if space_less:
+            return name
+
+        return name.replace("API_KEY__", "API Key: ")
+
+    return email or ""
+
+
 def user_needs_to_be_verified() -> bool:
     # all other auth types besides basic should require users to be
     # verified
     return AUTH_TYPE != AuthType.BASIC or REQUIRE_EMAIL_VERIFICATION
 
 
-def get_user_whitelist() -> list[str]:
-    global _user_whitelist
-    if _user_whitelist is None:
-        if os.path.exists(USER_WHITELIST_FILE):
-            with open(USER_WHITELIST_FILE, "r") as file:
-                _user_whitelist = [line.strip() for line in file]
-        else:
-            _user_whitelist = []
-
-    return _user_whitelist
-
-
 def verify_email_in_whitelist(email: str) -> None:
-    whitelist = get_user_whitelist()
+    whitelist = get_invited_users()
     if (whitelist and email not in whitelist) or not email:
         raise PermissionError("User not on allowed user whitelist")
 
@@ -133,8 +135,8 @@ def send_user_verification_email(
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
-    reset_password_token_secret = SECRET
-    verification_token_secret = SECRET
+    reset_password_token_secret = USER_AUTH_SECRET
+    verification_token_secret = USER_AUTH_SECRET
 
     async def create(
         self,

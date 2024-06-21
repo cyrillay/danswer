@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 import requests
 from transformers import logging as transformer_logging  # type:ignore
 
-from danswer.configs.app_configs import MODEL_SERVER_HOST
-from danswer.configs.app_configs import MODEL_SERVER_PORT
 from danswer.configs.model_configs import DOC_EMBEDDING_CONTEXT_SIZE
 from danswer.configs.model_configs import DOCUMENT_ENCODER_MODEL
 from danswer.search.enums import EmbedTextType
 from danswer.utils.logger import setup_logger
+from shared_configs.configs import MODEL_SERVER_HOST
+from shared_configs.configs import MODEL_SERVER_PORT
 from shared_configs.model_server_models import EmbedRequest
 from shared_configs.model_server_models import EmbedResponse
 from shared_configs.model_server_models import IntentRequest
@@ -24,6 +24,7 @@ transformer_logging.set_verbosity_error()
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
 
 logger = setup_logger()
 
@@ -196,7 +197,7 @@ def warm_up_encoders(
             embed_model.encode(texts=[warm_up_str], text_type=EmbedTextType.QUERY)
             return
         except Exception:
-            logger.info(
+            logger.exception(
                 f"Failed to run test embedding, retrying in {wait_time} seconds..."
             )
             time.sleep(wait_time)

@@ -24,6 +24,7 @@ MATCH_HIGHLIGHTS = "match_highlights"
 # not be used for QA. For example, Google Drive file types which can't be parsed
 # are still useful as a search result but not for QA.
 IGNORE_FOR_QA = "ignore_for_qa"
+# NOTE: deprecated, only used for porting key from old system
 GEN_AI_API_KEY_STORAGE_KEY = "genai_api_key"
 PUBLIC_DOC_PAT = "PUBLIC"
 PUBLIC_DOCUMENT_SET = "__PUBLIC"
@@ -51,10 +52,8 @@ SECTION_SEPARATOR = "\n\n"
 # For combining attributes, doesn't have to be unique/perfect to work
 INDEX_SEPARATOR = "==="
 
-
-# Key-Value store constants
-GEN_AI_DETECTED_MODEL = "gen_ai_detected_model"
-
+# For File Connector Metadata override file
+DANSWER_METADATA_FILENAME = ".danswer_metadata.json"
 
 # Messages
 DISABLED_GEN_AI_MSG = (
@@ -62,6 +61,12 @@ DISABLED_GEN_AI_MSG = (
     "Please contact them if you wish to have this enabled.\n"
     "You can still use Danswer as a search engine."
 )
+
+
+# API Keys
+DANSWER_API_KEY_PREFIX = "API_KEY__"
+DANSWER_API_KEY_DUMMY_EMAIL_DOMAIN = "danswerapikey.ai"
+UNNAMED_KEY_PLACEHOLDER = "Unnamed"
 
 
 class DocumentSource(str, Enum):
@@ -90,8 +95,15 @@ class DocumentSource(str, Enum):
     GOOGLE_SITES = "google_sites"
     ZENDESK = "zendesk"
     LOOPIO = "loopio"
+    DROPBOX = "dropbox"
     SHAREPOINT = "sharepoint"
+    TEAMS = "teams"
+    SALESFORCE = "salesforce"
+    DISCOURSE = "discourse"
     AXERO = "axero"
+    CLICKUP = "clickup"
+    MEDIAWIKI = "mediawiki"
+    WIKIPEDIA = "wikipedia"
 
 
 class DocumentIndexType(str, Enum):
@@ -120,3 +132,16 @@ class MessageType(str, Enum):
     SYSTEM = "system"  # SystemMessage
     USER = "user"  # HumanMessage
     ASSISTANT = "assistant"  # AIMessage
+
+
+class TokenRateLimitScope(str, Enum):
+    USER = "user"
+    USER_GROUP = "user_group"
+    GLOBAL = "global"
+
+
+class FileOrigin(str, Enum):
+    CHAT_UPLOAD = "chat_upload"
+    CHAT_IMAGE_GEN = "chat_image_gen"
+    CONNECTOR = "connector"
+    OTHER = "other"

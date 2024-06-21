@@ -4,7 +4,8 @@ import useSWR, { useSWRConfig } from "swr";
 import * as Yup from "yup";
 
 import { FileIcon } from "@/components/icons/icons";
-import { fetcher } from "@/lib/fetcher";
+import { errorHandlingFetcher } from "@/lib/fetcher";
+import { ErrorCallout } from "@/components/ErrorCallout";
 import { HealthCheckBanner } from "@/components/health/healthcheck";
 import { ConnectorIndexingStatus, FileConfig } from "@/lib/types";
 import { createCredential, linkCredential } from "@/lib/credential";
@@ -33,7 +34,7 @@ const Main = () => {
     isLoading: isConnectorIndexingStatusesLoading,
   } = useSWR<ConnectorIndexingStatus<any, any>[]>(
     "/api/manage/admin/connector/indexing-status",
-    fetcher
+    errorHandlingFetcher
   );
 
   if (!connectorIndexingStatuses && isConnectorIndexingStatusesLoading) {
@@ -52,9 +53,12 @@ const Main = () => {
       {filesAreUploading && <Spinner />}
       <Text className="mb-2">
         Specify files below, click the <b>Upload</b> button, and the contents of
-        these files will be searchable via Danswer! Currently only <i>.txt</i>,{" "}
-        <i>.pdf</i> and <i>.zip</i> files (containing only <i>.txt</i> files)
-        are supported.
+        these files will be searchable via Danswer! Currently supported file
+        types include <i>.txt</i>, <i>.pdf</i>, <i>.docx</i>, <i>.pptx</i>,{" "}
+        <i>.xlsx</i>, <i>.csv</i>, <i>.md</i>, <i>.mdx</i>, <i>.conf</i>,{" "}
+        <i>.log</i>, <i>.json</i>, <i>.tsv</i>, <i>.xml</i>, <i>.yml</i>,{" "}
+        <i>.yaml</i>, <i>.eml</i>, <i>.epub</i>, and finally <i>.zip</i> files
+        (containing supported file types).
       </Text>
       <Text className="mb-3">
         <b>NOTE:</b> if the original document is accessible via a link, you can
@@ -118,6 +122,7 @@ const Main = () => {
                         file_locations: filePaths,
                       },
                       refresh_freq: null,
+                      prune_freq: 0,
                       disabled: false,
                     });
                   if (connectorErrorMsg || !connector) {

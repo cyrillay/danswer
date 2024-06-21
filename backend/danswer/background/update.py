@@ -15,24 +15,12 @@ from danswer.background.indexing.run_indexing import run_indexing_entrypoint
 from danswer.configs.app_configs import CLEANUP_INDEXING_JOBS_TIMEOUT
 from danswer.configs.app_configs import DASK_JOB_CLIENT_ENABLED
 from danswer.configs.app_configs import DISABLE_INDEX_UPDATE_ON_SWAP
-from danswer.configs.app_configs import INDEXING_MODEL_SERVER_HOST
-from danswer.configs.app_configs import LOG_LEVEL
-from danswer.configs.app_configs import MODEL_SERVER_PORT
 from danswer.configs.app_configs import NUM_INDEXING_WORKERS
 from danswer.db.connector import fetch_connectors
-from danswer.db.connector_credential_pair import get_connector_credential_pairs
-from danswer.db.connector_credential_pair import mark_all_in_progress_cc_pairs_failed
-from danswer.db.connector_credential_pair import resync_cc_pair
-from danswer.db.connector_credential_pair import update_connector_credential_pair
 from danswer.db.embedding_model import get_current_db_embedding_model
 from danswer.db.embedding_model import get_secondary_db_embedding_model
-from danswer.db.embedding_model import update_embedding_model_status
 from danswer.db.engine import get_db_current_time
 from danswer.db.engine import get_sqlalchemy_engine
-from danswer.db.index_attempt import cancel_indexing_attempts_past_model
-from danswer.db.index_attempt import (
-    count_unique_cc_pairs_with_successful_index_attempts,
-)
 from danswer.db.index_attempt import create_index_attempt
 from danswer.db.index_attempt import get_index_attempt
 from danswer.db.index_attempt import get_inprogress_index_attempts
@@ -44,8 +32,12 @@ from danswer.db.models import EmbeddingModel
 from danswer.db.models import IndexAttempt
 from danswer.db.models import IndexingStatus
 from danswer.db.models import IndexModelStatus
+from danswer.db.swap_index import check_index_swap
 from danswer.search.search_nlp_models import warm_up_encoders
 from danswer.utils.logger import setup_logger
+from shared_configs.configs import INDEXING_MODEL_SERVER_HOST
+from shared_configs.configs import LOG_LEVEL
+from shared_configs.configs import MODEL_SERVER_PORT
 
 logger = setup_logger()
 
@@ -125,17 +117,6 @@ def _mark_run_failed(
         db_session=db_session,
         failure_reason=failure_reason,
     )
-    if (
-        index_attempt.connector_id is not None
-        and index_attempt.credential_id is not None
-        and index_attempt.embedding_model.status == IndexModelStatus.PRESENT
-    ):
-        update_connector_credential_pair(
-            db_session=db_session,
-            connector_id=index_attempt.connector_id,
-            credential_id=index_attempt.credential_id,
-            attempt_status=IndexingStatus.FAILED,
-        )
 
 
 """Main funcs"""
@@ -197,16 +178,6 @@ def create_indexing_jobs(existing_jobs: dict[int, Future | SimpleJob]) -> None:
                     create_index_attempt(
                         connector.id, credential.id, model.id, db_session
                     )
-
-                    # CC-Pair will have the status that it should for the primary index
-                    # Will be re-sync-ed once the indices are swapped
-                    if model.status == IndexModelStatus.PRESENT:
-                        update_connector_credential_pair(
-                            db_session=db_session,
-                            connector_id=connector.id,
-                            credential_id=credential.id,
-                            attempt_status=IndexingStatus.NOT_STARTED,
-                        )
 
 
 def cleanup_indexing_jobs(
@@ -354,51 +325,10 @@ def kickoff_indexing_jobs(
     return existing_jobs_copy
 
 
-def check_index_swap(db_session: Session) -> None:
-    """Get count of cc-pairs and count of successful index_attempts for the
-    new model grouped by connector + credential, if it's the same, then assume
-    new index is done building. If so, swap the indices and expire the old one."""
-    # Default CC-pair created for Ingestion API unused here
-    all_cc_pairs = get_connector_credential_pairs(db_session)
-    cc_pair_count = len(all_cc_pairs) - 1
-    embedding_model = get_secondary_db_embedding_model(db_session)
-
-    if not embedding_model:
-        return
-
-    unique_cc_indexings = count_unique_cc_pairs_with_successful_index_attempts(
-        embedding_model_id=embedding_model.id, db_session=db_session
-    )
-
-    if unique_cc_indexings > cc_pair_count:
-        raise RuntimeError("More unique indexings than cc pairs, should not occur")
-
-    if cc_pair_count == unique_cc_indexings:
-        # Swap indices
-        now_old_embedding_model = get_current_db_embedding_model(db_session)
-        update_embedding_model_status(
-            embedding_model=now_old_embedding_model,
-            new_status=IndexModelStatus.PAST,
-            db_session=db_session,
-        )
-
-        update_embedding_model_status(
-            embedding_model=embedding_model,
-            new_status=IndexModelStatus.PRESENT,
-            db_session=db_session,
-        )
-
-        # Expire jobs for the now past index/embedding model
-        cancel_indexing_attempts_past_model(db_session)
-
-        # Recount aggregates
-        for cc_pair in all_cc_pairs:
-            resync_cc_pair(cc_pair, db_session=db_session)
-
-
 def update_loop(delay: int = 10, num_workers: int = NUM_INDEXING_WORKERS) -> None:
     engine = get_sqlalchemy_engine()
     with Session(engine) as db_session:
+        check_index_swap(db_session=db_session)
         db_embedding_model = get_current_db_embedding_model(db_session)
 
     # So that the first time users aren't surprised by really slow speed of first
@@ -437,11 +367,6 @@ def update_loop(delay: int = 10, num_workers: int = NUM_INDEXING_WORKERS) -> Non
         client_secondary = SimpleJobClient(n_workers=num_workers)
 
     existing_jobs: dict[int, Future | SimpleJob] = {}
-
-    with Session(engine) as db_session:
-        # Previous version did not always clean up cc-pairs well leaving some connectors undeleteable
-        # This ensures that bad states get cleaned up
-        mark_all_in_progress_cc_pairs_failed(db_session)
 
     while True:
         start = time.time()

@@ -7,11 +7,11 @@ from danswer.auth.users import current_admin_user
 from danswer.danswerbot.slack.config import validate_channel_names
 from danswer.danswerbot.slack.tokens import fetch_tokens
 from danswer.danswerbot.slack.tokens import save_tokens
-from danswer.db.chat import get_persona_by_id
 from danswer.db.constants import SLACK_BOT_PERSONA_PREFIX
 from danswer.db.engine import get_session
 from danswer.db.models import ChannelConfig
 from danswer.db.models import User
+from danswer.db.persona import get_persona_by_id
 from danswer.db.slack_bot_config import create_slack_bot_persona
 from danswer.db.slack_bot_config import fetch_slack_bot_config
 from danswer.db.slack_bot_config import fetch_slack_bot_configs
@@ -140,7 +140,7 @@ def patch_slack_bot_config(
         existing_persona_id = existing_slack_bot_config.persona_id
         if existing_persona_id is not None:
             persona = get_persona_by_id(
-                persona_id=existing_persona_id, user_id=None, db_session=db_session
+                persona_id=existing_persona_id, user=None, db_session=db_session
             )
 
             if not persona.name.startswith(SLACK_BOT_PERSONA_PREFIX):
@@ -172,10 +172,10 @@ def patch_slack_bot_config(
 def delete_slack_bot_config(
     slack_bot_config_id: int,
     db_session: Session = Depends(get_session),
-    _: User | None = Depends(current_admin_user),
+    user: User | None = Depends(current_admin_user),
 ) -> None:
     remove_slack_bot_config(
-        slack_bot_config_id=slack_bot_config_id, db_session=db_session
+        slack_bot_config_id=slack_bot_config_id, user=user, db_session=db_session
     )
 
 
@@ -192,12 +192,15 @@ def list_slack_bot_configs(
 
 
 @router.put("/admin/slack-bot/tokens")
-def put_tokens(tokens: SlackBotTokens) -> None:
+def put_tokens(
+    tokens: SlackBotTokens,
+    _: User | None = Depends(current_admin_user),
+) -> None:
     save_tokens(tokens=tokens)
 
 
 @router.get("/admin/slack-bot/tokens")
-def get_tokens() -> SlackBotTokens:
+def get_tokens(_: User | None = Depends(current_admin_user)) -> SlackBotTokens:
     try:
         return fetch_tokens()
     except ConfigNotFoundError:

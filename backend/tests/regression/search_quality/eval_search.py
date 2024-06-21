@@ -8,8 +8,9 @@ from typing import TextIO
 from sqlalchemy.orm import Session
 
 from danswer.db.engine import get_sqlalchemy_engine
-from danswer.indexing.models import InferenceChunk
 from danswer.llm.answering.doc_pruning import reorder_docs
+from danswer.llm.factory import get_default_llm
+from danswer.search.models import InferenceChunk
 from danswer.search.models import RerankMetricsContainer
 from danswer.search.models import RetrievalMetricsContainer
 from danswer.search.models import SearchRequest
@@ -87,12 +88,13 @@ def get_search_results(
                 query=query,
             ),
             user=None,
+            llm=get_default_llm(),
             db_session=db_session,
             retrieval_metrics_callback=retrieval_metrics.record_metric,
             rerank_metrics_callback=rerank_metrics.record_metric,
         )
 
-        top_chunks = search_pipeline.reranked_docs
+        top_chunks = search_pipeline.reranked_chunks
         llm_chunk_selection = search_pipeline.chunk_relevance_list
 
     return (
