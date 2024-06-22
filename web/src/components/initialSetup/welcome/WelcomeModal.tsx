@@ -115,9 +115,9 @@ export function _WelcomeModal({ user }: { user: User | null }) {
             </Text>
             <div>
               <Text>
-                Connectors are the way that Danswer gets data from your
+                Connectors are the way that TailorAI gets data from your
                 organization&apos;s various data sources. Once setup, we&apos;ll
-                automatically sync data from your apps and docs into Danswer, so
+                automatically sync data from your apps and docs into TailorAI, so
                 you can search through all of them in one place.
               </Text>
 
@@ -219,7 +219,7 @@ export function _WelcomeModal({ user }: { user: User | null }) {
       body = (
         <>
           <div>
-            <Text>How are you planning on using Danswer?</Text>
+            <Text>How are you planning on using TailorAI?</Text>
           </div>
           <Divider />
           <UsageTypeSection
