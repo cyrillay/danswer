@@ -10,19 +10,9 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Prepare
-        run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV          
       
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,7 +41,6 @@ jobs:
         with:
           context: ./web
           file: ./web/Dockerfile
-          platforms: ${{ matrix.platform }}
           push: true
           build-args: |
             DANSWER_VERSION=${{ github.ref_name }}
