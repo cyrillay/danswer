@@ -181,10 +181,10 @@ export const SlackBotCreationForm = ({
                   label="Response Format"
                   subtext={
                     <>
-                      If set to Citations, TailorAIBot will respond with a direct
-                      answer with inline citations. It will also provide links
-                      to these cited documents below the answer. When in doubt,
-                      choose this option.
+                      If set to Citations, TailorAIBot will respond with a
+                      direct answer with inline citations. It will also provide
+                      links to these cited documents below the answer. When in
+                      doubt, choose this option.
                       <br />
                       <br />
                       If set to Quotes, TailorAIBot will respond with a direct

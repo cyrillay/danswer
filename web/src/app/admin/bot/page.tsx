@@ -196,8 +196,9 @@ const Main = () => {
       {popup}
 
       <Text className="mb-2">
-        Setup a Slack bot that connects to TailorAI. Once setup, you will be able
-        to ask questions to TailorAI directly from Slack. Additionally, you can:
+        Setup a Slack bot that connects to TailorAI. Once setup, you will be
+        able to ask questions to TailorAI directly from Slack. Additionally, you
+        can:
       </Text>
 
       <Text className="mb-2">
